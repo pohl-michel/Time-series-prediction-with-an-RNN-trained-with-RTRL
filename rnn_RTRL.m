@@ -11,9 +11,12 @@ function [ myRNN] = rnn_RTRL( myRNN, pred_par, beh_par, Xdata, Ydata)
 %       - the values of the loss function "myRNN.pred_loss_function"
 %       - the array containing the time for making each prediction "myRNN.pred_time_array"
 % 
+% v3.0 : correction of a miscalculation concerning the update of the array myRNN.LBDA
+% and speed improvement
+%
 % Author : Pohl Michel
-% Date : January 20th, 2020
-% Version : v2.0
+% Date : April 11th, 2021
+% Version : v3.0
 % License : 3-clause BSD License
 
    [~, M] = size(Xdata);
@@ -22,13 +25,10 @@ function [ myRNN] = rnn_RTRL( myRNN, pred_par, beh_par, Xdata, Ydata)
     p = myRNN.output_space_dim;
 
     % initializing some auxiliary variables
-    switch beh_par.GPU_COMPUTING
-        case true
-            aux_vec = gpuArray.ones(q, 1);      % used for calculating Phi_n
-            I = reshape(gpuArray.eye(q),q,1,q); % used for calculating U
-        case false
-            aux_vec = ones(q, 1);
-            I = reshape(eye(q),q,1,q);
+    if beh_par.GPU_COMPUTING
+        I = reshape(gpuArray.eye(q),q,1,q); % used for calculating U
+    else
+        I = reshape(eye(q),q,1,q);
     end  
     
     for t=1:M
@@ -44,14 +44,13 @@ function [ myRNN] = rnn_RTRL( myRNN, pred_par, beh_par, Xdata, Ydata)
        
         % II] update of the synaptic weights w and Wc
         aux_mat = transpose(myRNN.Wc)*e;
-        switch beh_par.GPU_COMPUTING
-            case true
-                lmbda_transpose = pagefun(@transpose, myRNN.LBDA);
-                myRNN.w_gradient = - squeeze(pagefun(@mtimes, lmbda_transpose, aux_mat));
-            case false
-                for j = 1:q
-                    myRNN.w_gradient(:,j) = - transpose(myRNN.LBDA(:,:,j))*aux_mat;
-                end
+        if beh_par.GPU_COMPUTING
+            lmbda_transpose = pagefun(@transpose, myRNN.LBDA);
+            myRNN.w_gradient = - squeeze(pagefun(@mtimes, lmbda_transpose, aux_mat));
+        else
+            for j = 1:q
+                myRNN.w_gradient(:,j) = - transpose(myRNN.LBDA(:,:,j))*aux_mat;
+            end
         end  
         Wc_gradient = - kron(e,transpose(myRNN.x)); %tensor multiplication 
         
@@ -61,21 +60,18 @@ function [ myRNN] = rnn_RTRL( myRNN, pred_par, beh_par, Xdata, Ydata)
         
         % III] update of the dynamics matrix LAMBDA 
         u = Xdata(:,t); % input vector of size m+1
-        ksi_n_transposed = [transpose(myRNN.x), u.']; % input-state vector
-        aux_fun = @(i) myRNN.phi_prime(ksi_n_transposed*myRNN.w(:,i));
-        Phi_n = diag(aux_fun(aux_vec));
-        myRNN.U = I.*ksi_n_transposed;     
         
-        switch beh_par.GPU_COMPUTING
-            case true
-                a = pagefun(@mtimes, myRNN.Wa, myRNN.LBDA);
-                b = pagefun(@plus, a, myRNN.U);
-                myRNN.LBDA = pagefun(@mtimes, Phi_n, b);
-            case false
-                for j=1:q
-                    myRNN.LBDA(:,:,j) = Phi_n*(myRNN.Wa*myRNN.LBDA(:,:,j)+myRNN.U(:,:,j));
-                end
-        end          
+        ksi_n = [myRNN.x; u];
+        Phi_n_vec = myRNN.phi_prime(transpose(myRNN.w)*ksi_n);
+        myRNN.U = I.*transpose(ksi_n); 
+        
+        if beh_par.GPU_COMPUTING
+            myRNN.LBDA = Phi_n_vec.*(pagefun(@mtimes, myRNN.Wa, myRNN.LBDA)+myRNN.U);
+        else
+            for j=1:q
+                myRNN.LBDA(:,:,j) = Phi_n_vec.*(myRNN.Wa*myRNN.LBDA(:,:,j)+myRNN.U(:,:,j));
+            end
+        end
         
         % IV] update of the state vector
         myRNN.x = myRNN.phi(myRNN.Wa*myRNN.x + myRNN.Wb*u);
