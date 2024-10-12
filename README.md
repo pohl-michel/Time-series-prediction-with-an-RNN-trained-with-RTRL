@@ -1,3 +1,7 @@
+Update (10th October 2024): An extension of this repository is available here: https://github.com/pohl-michel/2D-MR-image-prediction.
+That new repository focuses on video forecasting but the ["Time_series_forecasting" folder](https://github.com/pohl-michel/2D-MR-image-prediction/tree/main/Time_series_forecasting) has several new functionalities, including a script to perform hyper-parameter optimization, the addition of other online algorithms for RNNs (unbiased online recurrent optimization, decoupled neural interfaces, sparse 1-step approximation, and a simpler implementation of real-time recurrent learning) and other evaluation metrics for general time series (not necessarily representing the motion of 3D objects).
+
+----------------------------------------------
 This repository is the second of a series of three repositories containing code that we used in the research corresponding to the following article: 
 
 Michel Pohl, Mitsuru Uesaka, Kazuyuki Demachi, Ritu Bhusal Chhatkuli, "Prediction of the motion of chest internal points using a recurrent neural network trained with real-time recurrent learning for latency compensation in lung cancer radiotherapy", Computerized Medical Imaging and Graphics, Volume 91, 2021, 101941, ISSN 0895-6111
